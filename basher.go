@@ -1,15 +1,27 @@
 package basher
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 
 	"bitbucket.org/kardianos/osext"
+	log "github.com/Sirupsen/logrus"
 )
+
+func init() {
+	log.SetOutput(os.Stderr)
+	if os.Getenv("DEBUG") == "" {
+		log.SetLevel(log.InfoLevel)
+	} else {
+		log.SetLevel(log.DebugLevel)
+	}
+}
 
 func exitStatus(err error) (int, error) {
 	if err != nil {
@@ -39,6 +51,11 @@ func RunBash(envfile string, command string, args []string, env []string) (int, 
 		"PROGRAM="+executable,
 		"BASH_ENV="+envfile,
 	)
+
+	if os.Getenv("DEBUG") != "" {
+		fmt.Println("[go-basher] CMD", "/usr/bin/env -i ", strings.Join(cmd.Env, " "), "bash", "-c \"", command+argstring, "\"")
+	}
+
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -87,6 +104,7 @@ func (c *Context) ExportFunc(name string, fn func([]string) int) {
 }
 
 func (c *Context) HandleFuncs(args []string) {
+	log.Debug("HandleFuncs-hack() ")
 	c.ExportFunc("help", func(a []string) int {
 		prog := os.Args[0]
 		fmt.Println("Built in functions:")
@@ -95,11 +113,13 @@ func (c *Context) HandleFuncs(args []string) {
 		}
 		return 0
 	})
+
 	for i, arg := range args {
 		if arg == "::" && len(args) > i+1 {
 			c.Lock()
 			defer c.Unlock()
 			for cmd := range c.fns {
+				log.Debug("checking cmd: ", cmd)
 				if cmd == args[i+1] {
 					os.Exit(c.fns[cmd](args[i+2:]))
 				}
@@ -139,6 +159,12 @@ func (c *Context) Run(command string, args []string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer os.Remove(envfile)
+
+	if os.Getenv("DEBUG") == "" {
+		defer os.Remove(envfile)
+	} else {
+		log.Debug("[go-basher] keeping: ", envfile)
+	}
+
 	return RunBash(envfile, command, args, c.env)
 }
