@@ -87,6 +87,14 @@ func (c *Context) ExportFunc(name string, fn func([]string) int) {
 }
 
 func (c *Context) HandleFuncs(args []string) {
+	c.ExportFunc("help", func(a []string) int {
+		prog := os.Args[0]
+		fmt.Println("Built in functions:")
+		for fn, _ := range c.fns {
+			fmt.Println(prog, "::", fn)
+		}
+		return 0
+	})
 	for i, arg := range args {
 		if arg == "::" && len(args) > i+1 {
 			c.Lock()
