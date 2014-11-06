@@ -60,6 +60,14 @@ func NewContext() *Context {
 	}
 }
 
+func NewContextWithEnv(e []string) *Context {
+	return &Context{
+		files: make([]string, 0),
+		env:   e,
+		fns:   make(map[string]func([]string) int),
+	}
+}
+
 func (c *Context) Source(filename string) {
 	c.Lock()
 	defer c.Unlock()
