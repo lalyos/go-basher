@@ -239,7 +239,7 @@ func (c *Context) Run(command string, args []string) (int, error) {
 	signal.Notify(signals)
 
 	if c.Debug {
-		fmt.Printf("[DEBUG] basher: BASH_ENV=%s %s %s\n", envfile, c.BashPath, command+argstring)
+		fmt.Printf("[DEBUG] basher: BASH_ENV=%s %s -c '%s'\n", envfile, c.BashPath, command+argstring)
 	}
 	cmd := exec.Command(c.BashPath, "-c", command+argstring)
 	cmd.Env = []string{"BASH_ENV=" + envfile}
