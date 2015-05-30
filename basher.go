@@ -73,6 +73,58 @@ func Application(
 	os.Exit(status)
 }
 
+func CopyEnvWithPrefix(prefix string) func(*Context) error {
+	return func(c *Context) error {
+		c.Lock()
+		defer c.Unlock()
+		for _, e := range os.Environ() {
+			if strings.HasPrefix(e, prefix) {
+				c.vars = append(c.vars, e)
+			}
+		}
+
+		return nil
+	}
+}
+
+func DebugIfEnvSet(envName string) func(*Context) error {
+	return func(c *Context) error {
+		c.Debug = os.Getenv(envName) != ""
+		return nil
+	}
+}
+
+func ApplicationWithOpts(options ...func(*Context) error) {
+	err := RestoreAsset(".go-basher", "bash")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	c, err := defaultContext()
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.BashPath = ".go-basher/bash"
+
+	for _, option := range options {
+		err := option(c)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if c.HandleFuncs(os.Args) {
+		os.Exit(0)
+	}
+
+	status, err := c.Run("main", os.Args[1:])
+	if err != nil {
+		log.Fatal(err)
+	}
+	os.Exit(status)
+
+}
+
 // A Context is an instance of a Bash interpreter and environment, including
 // sourced scripts, environment variables, and embedded Go functions
 type Context struct {
@@ -104,16 +156,13 @@ type Context struct {
 	funcs   map[string]func([]string)
 }
 
-// Creates and initializes a new Context that will use the given Bash executable.
-// The debug mode will leave the produced temporary BASH_ENV file for inspection.
-func NewContext(bashpath string, debug bool) (*Context, error) {
+func defaultContext() (*Context, error) {
 	executable, err := osext.Executable()
 	if err != nil {
 		return nil, err
 	}
 	return &Context{
-		Debug:    debug,
-		BashPath: bashpath,
+		Debug:    false,
 		SelfPath: executable,
 		Stdin:    os.Stdin,
 		Stdout:   os.Stdout,
@@ -122,6 +171,20 @@ func NewContext(bashpath string, debug bool) (*Context, error) {
 		vars:     make([]string, 0),
 		funcs:    make(map[string]func([]string)),
 	}, nil
+}
+
+// Creates and initializes a new Context that will use the given Bash executable.
+// The debug mode will leave the produced temporary BASH_ENV file for inspection.
+func NewContext(bashpath string, debug bool) (*Context, error) {
+
+	c, err := defaultContext()
+	if err != nil {
+		return nil, err
+	}
+
+	c.Debug = debug
+	c.BashPath = bashpath
+	return c, nil
 }
 
 // Copies the current environment variables into the Context
